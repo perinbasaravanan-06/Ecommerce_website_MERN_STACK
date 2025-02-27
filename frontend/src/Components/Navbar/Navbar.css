@@ -1,10 +1,7 @@
 .navbar{
     display: flex;
     justify-content: space-around;
-    padding-bottom: 5px;
-    padding-left: 10px;
-    padding-right: 10px;
-    padding-top: 5px;
+    padding: 16px;
     box-shadow: 0 1px 3px -2px black;
 }
 .nav-logo{
@@ -69,10 +66,10 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-top: -38px;
-    margin-left: -51px;
-    color: #ffff;
-    background-color: red;
+    margin-top: -35px;
+    margin-left: -55px;
     border-radius: 11px;
     font-size: 14px;
+    background-color: red;
+    color: #ffff;
 }
