@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const path = require("path");
 const cors = require("cors");
-const { error, log } = require("console");
+
 
 app.use(express.json());
 app.use(cors());
@@ -38,7 +38,6 @@ app.post("/upload",upload.single('product'),(req,res)=>{
         image_url :`http://localhost:${port}/images/${req.file.filename}`
     })
 })
-
 
 //Schema for Creating Products
 
@@ -105,12 +104,182 @@ app.post('/addproduct', async(req,res)=>{
     })
 })
 
-
 //creating api for deleting products
 
 app.post('/removeproduct' ,async (req,res)=>{
-    await Product.findOneAndDelete({id : req.body.id})
+    await Product.findOneAndDelete({id : req.body.id});
+    console.log("Removed");
+    res.json({
+        success:true,
+        name : req.body.name
+    })
 })
+
+// Creating api for getting all Porducts
+app.get('/allproducts' , async (req,res)=>{
+    let products = await Product.find({});
+    console.log("All Products Fetched");
+    res.send(products);
+  
+})
+
+//Schema creating for User model
+
+const Users = mongoose.model('Users',{
+    name :{
+        type : String,
+    },
+    email:{
+        type:String,
+        unique : true,
+    },
+    password:{
+        type : String
+    },
+    cartData : {
+        type : Object,
+    },
+    date :{
+        type : Date,
+        default : Date.now,
+    }
+})
+
+
+//Creating End Point foe registering User
+
+app.post('/signup',async (req,res)=>{
+    let check = await Users.findOne({email:req.body.email});
+    if(check){
+        return res.status(400).
+        json({success:false,errors:"Existing user found with same emailid"})
+    }
+    let cart = {};
+    for(let i =0;i<300;i++){
+        cart[i] = 0;
+    }
+    const user = new Users({
+        name : req.body.username,
+        email : req.body.email,
+        password : req.body.password,
+        cartData : cart
+    })
+
+   await user.save();
+   const data = {
+    user : {
+        id : user.id
+    }
+   }
+
+   const token = jwt.sign(data,'secret_ecom');
+   res.json({success:true,token});
+})
+
+
+//Creating endpoint for User login
+
+app.post('/login',async (req,res)=>{
+    let user = await Users.findOne({email:req.body.email})
+    if(user){
+        console.log("Email match found");
+        const passCompare = req.body.password === user.password;
+        if(passCompare){
+            console.log("Password match found");
+            const data = {
+                user : {
+                    id : user.id
+                }
+            }
+            const  token = jwt.sign(data,'secret_ecom');
+            res.json({success:true,token});
+        }
+        else{
+            console.log("Password does not match")
+            res.json({success:false,errors : "Wrong Password"})
+        }
+    }
+    else{
+        console.log("The email you entered is incorrect")
+        res.json({success:false,errors :"The email you entered is incorrect"})
+    }
+}
+
+)
+
+
+//creating endpoints for newcollectons data
+
+app.get('/newcollections',async (req,res)=>{
+    let products  = await Product.find({});
+    let newcollection = products.slice(1).slice(-8);
+    console.log("New Collection Fetched");
+    res.send(newcollection);
+})
+
+
+
+//popular in women
+
+app.get('/popularinwomen', async (req,res)=>{
+    let products = await Product.find({category:"women"});
+    let popoular_in_women = products.slice(0,4);
+    console.log("poplar in  women fetced");
+    res.send(popoular_in_women);
+})
+
+// creating middleware to fetch user
+
+
+const fetchUser = async (req,res,next)=>{
+    const token = req.header('auth-token');
+    if(!token){
+        res.status(401).send({errors : "please authenticate using valid tokens"})
+    }
+    else{
+        try{
+                const data = jwt.verify(token,'secret_ecom');
+                req.user =data.user;
+                next();
+        }
+        catch(error){
+            res.status(401).send({errors:"Please authenticate using a valid token"});
+        }
+    }
+}
+
+
+// creating endpoint for adding products in cartdata
+ app.post('/addtocart',fetchUser , async (req,res)=>{
+    console.log("Added",req.body.itemId);
+    let userData = await Users.findOne({_id:req.user.id});
+    userData.cartData[req.body.itemId] +=1;
+    await Users.findOneAndUpdate({_id:req.user.id},{cartData:userData.cartData});
+    res.send("Added");
+})
+//createing end point to remove product  from addto cart
+
+
+app.post('/removefromcart',fetchUser,async (req,res)=>{
+    console.log("Removed",req.body.itemId);
+    let userData = await Users.findOne({_id:req.user.id});
+    if(userData.cartData[req.body.itemId]>0){
+        userData.cartData[req.body.itemId] -=1;
+    }
+    await Users.findOneAndUpdate({_id:req.user.id},{cartData:userData.cartData});
+    res.send("Removed");
+} )
+
+// creating end point to get cart data
+
+app.post('/getcart',fetchUser,async (req,res)=>{
+    console.log("Get cart");
+    let userData = await Users.findOne({_id:req.user.id});
+    res.json(userData.cartData);
+})
+
+
+// to run server
 
 app.listen(port , (error)=>{
     if(!error){
