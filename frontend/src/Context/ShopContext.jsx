@@ -16,7 +16,7 @@ const ShopContextProvider = (props) => {
   const [cartItems, setCartItems] = useState(getOrDefault());
 
   // Centralized backend URL
-  const backendUrl = "http://localhost:4000"; // replace with deployed URL when needed
+  const backendUrl = "https://saravanan-ecommerce.onrender.com/"; // replace with deployed URL when needed
 
   useEffect(() => {
     // Fetch all products

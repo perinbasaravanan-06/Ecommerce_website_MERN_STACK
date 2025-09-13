@@ -16,7 +16,9 @@ const ListProduct = ({ refreshTrigger }) => {
     }
   };
 
-  useEffect(() => { fetchInfo(); }, [refreshTrigger]);
+  useEffect(() => { 
+    fetchInfo(); 
+  }, [refreshTrigger]);
 
   const remove_product = async (id) => {
     try {
