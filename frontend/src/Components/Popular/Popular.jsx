@@ -1,28 +1,37 @@
-import React, { useEffect, useState } from 'react'
-import './Popular.css'
-import Item from '../Item/Item'
+import React, { useEffect, useState, useContext } from 'react';
+import axios from 'axios';
+import './Popular.css';
+import { ShopContext } from '../../Context/ShopContext';
 
 const Popular = () => {
+  const [products, setProducts] = useState([]);
+  const { backendUrl } = useContext(ShopContext);
 
-  const [popularProducts,setPopularProducts] = useState([]);
-
-  useEffect(()=>{
-    fetch('http://localhost:4000/popularinwomen')
-    .then((response)=>response.json())
-    .then((data)=>setPopularProducts(data));
-  },[])
+  useEffect(() => {
+    axios.get(`${backendUrl}/api/products/popularinwomen`)
+      .then(res => setProducts(res.data))
+      .catch(err => console.error("Error fetching products:", err));
+  }, [backendUrl]);
 
   return (
-    <div className='popular'>
-        <h1>POPULAR IN WOMEN</h1>
-        <hr />
-        <div className="popular-item">
-            {popularProducts.map((item,i)=>{
-                return <Item key = {i} id={item.id} name = {item.name} image = {item.image} new_price = {item.new_price} old_price = {item.old_price}/>
-            })}
-        </div>
+    <div className="popular">
+      <h1>Popular in Women’s</h1>
+      <hr />
+      <div className="popular-item">
+        {products.length > 0 ? (
+          products.map((item) => (
+            <div className="popular-card" key={item._id}>
+              <img src={item.image} alt={item.name} />
+              <p>{item.name}</p>
+              <p className="price">${item.new_price}</p>
+            </div>
+          ))
+        ) : (
+          <p>Loading...</p>
+        )}
+      </div>
     </div>
-  )
-}
+  );
+};
 
-export default Popular
+export default Popular;

@@ -1,291 +1,71 @@
-const port = 4000;
+require("dotenv").config();
 const express = require("express");
-const app = express();
-const mongoose = require("mongoose");
-const jwt = require("jsonwebtoken");
-const multer = require("multer");
-const path = require("path");
 const cors = require("cors");
+const connectDB = require("./config/db.js");
 
+const port = process.env.PORT || 4000;
+const BASE_URL = process.env.BASE_URL || `http://localhost:${port}`;
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
+const app = express();
+
+// Middleware
 app.use(express.json());
-app.use(cors());
+const allowedOrigins = ["http://localhost:3000", "http://localhost:5173"];
 
-// Database Connection = mongodb+srv://saravanan:12345@cluster0.i60re.mongodb.net/
-mongoose.connect("mongodb+srv://saravanan:12345@cluster0.i60re.mongodb.net/Ecommerce");
-// Api creation
+app.use(
+  cors({
+    origin: function(origin, callback){
+      if(!origin) return callback(null, true); // allow postman or server-to-server
+      if(allowedOrigins.indexOf(origin) === -1){
+        const msg = `The CORS policy for this site does not allow access from the specified Origin.`;
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
 
-app.get("/",(req,res)=>{
-    res.send("Express App is Running")
-})
 
-//Image storage engine
+// Connect DB
+connectDB();
+
+// Routes
+const productRoutes = require("./routes/productRoutes.js");
+const userRoutes = require("./routes/userRoutes.js");
+const paymentRoutes = require("./routes/paymentRoutes.js");
+
+app.use("/api/products", productRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/payment", paymentRoutes);
+
+// Static for images
+const path = require("path");
+const multer = require("multer");
+
 const storage = multer.diskStorage({
-    destination : './upload/images',
-    filename:(req,file,cb)=>{
-        return cb(null,`${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`)
-    }
-})
+  destination: "./upload/images",
+  filename: (req, file, cb) => {
+    cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
+  },
+});
+const upload = multer({ storage });
 
-const upload = multer({storage:storage});
-// creating upload endpoint for images
+app.use("/images", express.static("upload/images"));
+app.post("/upload", upload.single("product"), (req, res) => {
+  res.json({
+    success: 1,
+    image_url: `${BASE_URL}/images/${req.file.filename}`,
+  });
+});
 
-app.use('/images',express.static('upload/images'));
+// Default route
+app.get("/", (req, res) => {
+  res.send("Express App is Running");
+});
 
-app.post("/upload",upload.single('product'),(req,res)=>{
-    res.json({
-        success : 1,
-        image_url :`http://localhost:${port}/images/${req.file.filename}`
-    })
-})
-
-//Schema for Creating Products
-
-const Product = mongoose.model("Product",{
-    id:{
-        type : Number,
-        required : true,
-    },
-    name:{
-        type : String,
-        required : true,
-    },
-    image:{
-        type : String,
-        required : true,
-    },
-    category : {
-        type : String,
-        required : true,
-    },
-    new_price : {
-        type : Number,
-        required : true,
-    },
-    old_price :{
-        type : Number,
-        required : true,
-    },
-    date : {
-        type : Date,
-        default: Date.now,
-    },
-    available :{
-        type : Boolean,
-        default : true,
-    }
-})
-
-app.post('/addproduct', async(req,res)=>{
-    const products = await Product.find({});
-    let id;
-    if(products.length > 0) {
-        let last_product_array = products.slice(-1);
-        let last_product = last_product_array[0];
-        id = last_product.id+1;
-    }
-    else{
-        id = 1;
-    }
-    const product = new Product({
-        id : id,
-        name : req.body.name,
-        image : req.body.image,
-        category : req.body.category,
-        new_price : req.body.new_price,
-        old_price : req.body.old_price,
-    })
-    console.log(product);
-    await product.save();
-    console.log("Saved");
-    res.json({
-        success : true,
-        name : req.body.name,
-    })
-})
-
-//creating api for deleting products
-
-app.post('/removeproduct' ,async (req,res)=>{
-    await Product.findOneAndDelete({id : req.body.id});
-    console.log("Removed");
-    res.json({
-        success:true,
-        name : req.body.name
-    })
-})
-
-// Creating api for getting all Porducts
-app.get('/allproducts' , async (req,res)=>{
-    let products = await Product.find({});
-    console.log("All Products Fetched");
-    res.send(products);
-  
-})
-
-//Schema creating for User model
-
-const Users = mongoose.model('Users',{
-    name :{
-        type : String,
-    },
-    email:{
-        type:String,
-        unique : true,
-    },
-    password:{
-        type : String
-    },
-    cartData : {
-        type : Object,
-    },
-    date :{
-        type : Date,
-        default : Date.now,
-    }
-})
-
-
-//Creating End Point foe registering User
-
-app.post('/signup',async (req,res)=>{
-    let check = await Users.findOne({email:req.body.email});
-    if(check){
-        return res.status(400).
-        json({success:false,errors:"Existing user found with same emailid"})
-    }
-    let cart = {};
-    for(let i =0;i<300;i++){
-        cart[i] = 0;
-    }
-    const user = new Users({
-        name : req.body.username,
-        email : req.body.email,
-        password : req.body.password,
-        cartData : cart
-    })
-
-   await user.save();
-   const data = {
-    user : {
-        id : user.id
-    }
-   }
-
-   const token = jwt.sign(data,'secret_ecom');
-   res.json({success:true,token});
-})
-
-
-//Creating endpoint for User login
-
-app.post('/login',async (req,res)=>{
-    let user = await Users.findOne({email:req.body.email})
-    if(user){
-        console.log("Email match found");
-        const passCompare = req.body.password === user.password;
-        if(passCompare){
-            console.log("Password match found");
-            const data = {
-                user : {
-                    id : user.id
-                }
-            }
-            const  token = jwt.sign(data,'secret_ecom');
-            res.json({success:true,token});
-        }
-        else{
-            console.log("Password does not match")
-            res.json({success:false,errors : "Wrong Password"})
-        }
-    }
-    else{
-        console.log("The email you entered is incorrect")
-        res.json({success:false,errors :"The email you entered is incorrect"})
-    }
-}
-
-)
-
-
-//creating endpoints for newcollectons data
-
-app.get('/newcollections',async (req,res)=>{
-    let products  = await Product.find({});
-    let newcollection = products.slice(1).slice(-8);
-    console.log("New Collection Fetched");
-    res.send(newcollection);
-})
-
-
-
-//popular in women
-
-app.get('/popularinwomen', async (req,res)=>{
-    let products = await Product.find({category:"women"});
-    let popoular_in_women = products.slice(0,4);
-    console.log("poplar in  women fetced");
-    res.send(popoular_in_women);
-})
-
-// creating middleware to fetch user
-
-
-const fetchUser = async (req,res,next)=>{
-    const token = req.header('auth-token');
-    if(!token){
-        res.status(401).send({errors : "please authenticate using valid tokens"})
-    }
-    else{
-        try{
-                const data = jwt.verify(token,'secret_ecom');
-                req.user =data.user;
-                next();
-        }
-        catch(error){
-            res.status(401).send({errors:"Please authenticate using a valid token"});
-        }
-    }
-}
-
-
-// creating endpoint for adding products in cartdata
- app.post('/addtocart',fetchUser , async (req,res)=>{
-    console.log("Added",req.body.itemId);
-    let userData = await Users.findOne({_id:req.user.id});
-    userData.cartData[req.body.itemId] +=1;
-    await Users.findOneAndUpdate({_id:req.user.id},{cartData:userData.cartData});
-    res.send("Added");
-})
-//createing end point to remove product  from addto cart
-
-
-app.post('/removefromcart',fetchUser,async (req,res)=>{
-    console.log("Removed",req.body.itemId);
-    let userData = await Users.findOne({_id:req.user.id});
-    if(userData.cartData[req.body.itemId]>0){
-        userData.cartData[req.body.itemId] -=1;
-    }
-    await Users.findOneAndUpdate({_id:req.user.id},{cartData:userData.cartData});
-    res.send("Removed");
-} )
-
-// creating end point to get cart data
-
-app.post('/getcart',fetchUser,async (req,res)=>{
-    console.log("Get cart");
-    let userData = await Users.findOne({_id:req.user.id});
-    res.json(userData.cartData);
-})
-
-
-// to run server
-
-app.listen(port , (error)=>{
-    if(!error){
-        console.log(`Server Created Successfully on PORT ${port}`);
-    }
-    else{
-        console.log("Error :" + error);
-    }
-})
+// Start server
+app.listen(port, () => {
+  console.log(`Server running on ${BASE_URL}`);
+});
